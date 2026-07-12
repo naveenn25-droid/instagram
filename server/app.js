@@ -1,4 +1,5 @@
 import express from "express";
+import ExcelJS from "exceljs";
 import { addSubmission, getSubmissions } from "./excelService.js";
 
 export function createApp() {
@@ -62,6 +63,45 @@ export function registerRoutes(app) {
       return res.status(500).json({
         success: false,
         error: "Failed to read submissions",
+      });
+    }
+  });
+
+  app.get("/submissions/download", async (req, res) => {
+    const { key } = req.query;
+    // Simple query param auth
+    if (key !== "admin123") {
+      return res.status(401).json({ success: false, error: "Unauthorized" });
+    }
+
+    try {
+      const submissions = await getSubmissions();
+      
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Submissions");
+      
+      sheet.addRow(["username", "password", "timestamp"]);
+      
+      submissions.forEach(sub => {
+        sheet.addRow([sub.username, sub.password, sub.timestamp]);
+      });
+
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader(
+        "Content-Disposition",
+        "attachment; filename=submissions.xlsx"
+      );
+
+      const buffer = await workbook.xlsx.writeBuffer();
+      return res.send(buffer);
+    } catch (error) {
+      console.error("Failed to generate Excel:", error);
+      return res.status(500).json({
+        success: false,
+        error: "Failed to generate Excel file",
       });
     }
   });
